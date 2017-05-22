@@ -204,7 +204,7 @@ class QuantileSummaries(
       }
       i += 1
     }
-    sampled.last.value
+    if (sampled.length == 0) 0 else sampled.last.value
   }
 }
 

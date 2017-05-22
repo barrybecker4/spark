@@ -76,7 +76,9 @@ object StatFunctions extends Logging {
     def apply(summaries: Array[QuantileSummaries], row: Row): Array[QuantileSummaries] = {
       var i = 0
       while (i < summaries.length) {
-        summaries(i) = summaries(i).insert(row.getDouble(i))
+        if (!row.isNullAt(i)) {
+          summaries(i) = summaries(i).insert(row.getDouble(i))
+        }
         i += 1
       }
       summaries

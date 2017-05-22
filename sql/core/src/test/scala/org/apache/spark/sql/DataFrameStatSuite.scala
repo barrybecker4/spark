@@ -19,13 +19,16 @@ package org.apache.spark.sql
 
 import java.util.Random
 
+import scala.collection.mutable
+
 import org.scalatest.Matchers._
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.execution.stat.StatFunctions
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSQLContext
-import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.types.{DoubleType, IntegerType, StructField, StructType}
+
 
 class DataFrameStatSuite extends QueryTest with SharedSQLContext {
   import testImplicits._
@@ -324,6 +327,20 @@ class DataFrameStatSuite extends QueryTest with SharedSQLContext {
     val filter4 = df.stat.bloomFilter($"id" * 3, 1000, 64 * 5)
     assert(filter4.bitSize() == 64 * 5)
     assert(0.until(1000).forall(i => filter4.mightContain(i * 3)))
+  }
+
+  test("computing approx quantiles should not fail on a DataFrame with no rows") {
+
+    val col1: StructField = StructField("col1", IntegerType)
+    val col2: StructField = StructField("col2", DoubleType )
+    val mySchema = StructType(col1 :: col2 :: Nil)
+
+    val emptyDf = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], mySchema)
+
+    val t2 = StatFunctions.multipleApproxQuantiles(emptyDf,
+      Seq("col1", "col2"), Seq(0.1, 0.25, 0.5, 0.75, 0.9), 0.01)
+
+    assert(t2 === mutable.ArraySeq(List(0.0, 0.0, 0.0, 0.0, 0.0), List(0.0, 0.0, 0.0, 0.0, 0.0)))
   }
 }
 

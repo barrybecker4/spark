@@ -731,6 +731,41 @@ class DataFrameSuite extends QueryTest with SharedSQLContext {
     checkAnswer(emptyDescription, emptyDescribeResult)
   }
 
+  test("weighted describe") {
+    val describeTestData = Seq(
+      ("Bob", 16, 176, 400),
+      ("Alice", 32, 164, 100),
+      ("David", 60, 192, 200),
+      ("Amy", 24, 180, 100)).toDF("name", "age", "height", "weight")
+
+    val describeResult = Seq(
+      Row("count", "800.0", "800.0", "4"),
+      Row("mean", "30.0", "179.0", "200.0"),
+      Row("stddev", "8.698122402756432", "4.252175913576482", "141.4213562373095"),
+      Row("min", "16", "164", "100"),
+      Row("max", "60", "192", "400"))
+
+    val emptyDescribeResult = Seq(
+      Row("count", null, null, "0"),
+      Row("mean", null, null, null),
+      Row("stddev", null, null, null),
+      Row("min", null, null, null),
+      Row("max", null, null, null))
+
+    def getSchemaAsSeq(df: DataFrame): Seq[String] = df.schema.map(_.name)
+
+    val basicStats = new BasicStatistics(describeTestData, Some("weight"))
+
+    val describeAllCols = basicStats.describe()
+    assert(getSchemaAsSeq(describeAllCols) === Seq("summary", "age", "height", "weight"))
+    checkAnswer(describeAllCols, describeResult)
+
+    val basicStatsEmpty = new BasicStatistics(describeTestData.limit(0), Some("weight"))
+    val emptyDescription = basicStatsEmpty.describe()
+    assert(getSchemaAsSeq(emptyDescription) === Seq("summary", "age", "height", "weight"))
+    checkAnswer(emptyDescription, emptyDescribeResult)
+  }
+
   test("apply on query results (SPARK-5462)") {
     val df = testData.sparkSession.sql("select key from testData")
     checkAnswer(df.select(df("key")), testData.select('key).collect().toSeq)

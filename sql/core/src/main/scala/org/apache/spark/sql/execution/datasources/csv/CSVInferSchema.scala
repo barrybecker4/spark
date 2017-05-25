@@ -18,12 +18,12 @@
 package org.apache.spark.sql.execution.datasources.csv
 
 import java.math.BigDecimal
+import java.sql.Timestamp
 import java.text.NumberFormat
 import java.util.Locale
-import java.sql.Timestamp
 
 import scala.util.control.Exception._
-import scala.util.{Try, Success, Failure}
+import scala.util.{Failure, Success, Try}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
@@ -323,7 +323,9 @@ private[csv] object CSVTypeCast {
       case Success(time) => Some(time)
       // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
       // compatibility.
-      case Failure(_) => Try(DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(datum).getTime)) match {
+      case Failure(_) => Try {
+        DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(datum).getTime)
+      } match {
         case Success(time) => Some(time)
         case Failure(_) => None
       }
@@ -369,7 +371,7 @@ private[csv] object CSVTypeCast {
       options: CSVOptions = CSVOptions()): Any = {
 
     // datum can be null if the number of fields found is less than the length of the schema
-    if(options.nullValues.contains(datum) || null == datum) {
+    if (options.nullValues.contains(datum) || null == datum) {
       if (!nullable) {
         throw new RuntimeException(s"null value found but field $name is not nullable.")
       }
@@ -387,7 +389,7 @@ private[csv] object CSVTypeCast {
         case _: TimestampType => castToTimestamp(datum, options)
         case _: DateType => castToDate(datum, options)
         case _: StringType => castToUTF8String(datum)
-//        case udt: UserDefinedType[_] => castTo(datum, name, udt.sqlType, nullable, options)
+        case udt: UserDefinedType[_] => castTo(datum, name, udt.sqlType, nullable, options)
         case _ => throw new RuntimeException(s"Unsupported type: ${castType.typeName}")
       }
 

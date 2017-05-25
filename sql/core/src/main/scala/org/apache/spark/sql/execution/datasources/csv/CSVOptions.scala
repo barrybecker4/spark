@@ -92,7 +92,7 @@ private[csv] class CSVOptions(@transient private val parameters: CaseInsensitive
   val dropMalformed = ParseModes.isDropMalformedMode(parseMode)
   val permissive = ParseModes.isPermissiveMode(parseMode)
 
-  val nullValue = parameters.getOrElse("nullValue", "")
+  val nullValues = parameters.getOrElse("nullValues", "").split(',').toList
 
   val nanValue = parameters.getOrElse("nanValue", "NaN")
 

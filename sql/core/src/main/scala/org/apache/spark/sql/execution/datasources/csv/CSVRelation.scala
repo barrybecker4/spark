@@ -219,7 +219,7 @@ private[csv] class CsvOutputWriter(
       if (!row.isNullAt(i)) {
         values(i) = valueConverters(i).apply(row, i)
       } else {
-        values(i) = params.nullValue
+        values(i) = params.nullValues(0)
       }
       i += 1
     }

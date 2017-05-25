@@ -42,7 +42,7 @@ private[csv] class CsvReader(params: CSVOptions) {
     settings.setReadInputOnSeparateThread(false)
     settings.setInputBufferSize(params.inputBufferSize)
     settings.setMaxColumns(params.maxColumns)
-    settings.setNullValue(params.nullValue)
+    settings.setNullValue(params.nullValues(0))
     settings.setMaxCharsPerColumn(params.maxCharsPerColumn)
     settings.setUnescapedQuoteHandling(UnescapedQuoteHandling.STOP_AT_DELIMITER)
 
@@ -73,8 +73,8 @@ private[csv] class LineCsvWriter(params: CSVOptions, headers: Seq[String]) exten
   format.setQuoteEscape(params.escape)
   format.setComment(params.comment)
 
-  writerSettings.setNullValue(params.nullValue)
-  writerSettings.setEmptyValue(params.nullValue)
+  writerSettings.setNullValue(params.nullValues(0))
+  writerSettings.setEmptyValue(params.nullValues(0))
   writerSettings.setSkipEmptyLines(true)
   writerSettings.setQuoteAllFields(params.quoteAll)
   writerSettings.setHeaders(headers: _*)

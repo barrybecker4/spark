@@ -90,7 +90,7 @@ class CSVFileFormat extends TextBasedFileFormat with DataSourceRegister {
       }
 
       row.zipWithIndex.map { case (value, index) =>
-        if (value == null || value.isEmpty || value == options.nullValue) {
+        if (value == null || value.isEmpty || options.nullValues.contains(value)) {
           // When there are empty strings or the values set in `nullValue`, put the
           // index as the suffix.
           s"_c$index"

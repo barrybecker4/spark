@@ -20,9 +20,10 @@ package org.apache.spark.sql.execution.datasources.csv
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.util.Locale
+import java.sql.Timestamp
 
 import scala.util.control.Exception._
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
@@ -78,7 +79,7 @@ private[csv] object CSVInferSchema {
    * point checking if it is an Int, as the final type must be Double or higher.
    */
   def inferField(typeSoFar: DataType, field: String, options: CSVOptions): DataType = {
-    if (field == null || field.isEmpty || field == options.nullValue) {
+    if (field == null || field.isEmpty || options.nullValues.contains(field)) {
       typeSoFar
     } else {
       typeSoFar match {
@@ -218,6 +219,134 @@ private[csv] object CSVInferSchema {
 
 private[csv] object CSVTypeCast {
 
+  private def castToByte(datum: String): Option[Byte] = {
+    Try(datum.toByte) match {
+      case Success(i) => Some(i)
+      case Failure(_) => Try(datum.toDouble) match {
+        case Success(d) => if (d.isValidByte) Some(d.toByte) else None
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def castToShort(datum: String): Option[Short] = {
+    Try(datum.toShort) match {
+      case Success(i) => Some(i)
+      case Failure(_) => Try(datum.toDouble) match {
+        case Success(d) => if (d.isValidShort) Some(d.toShort) else None
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def castToInteger(datum: String): Option[Integer] = {
+    Try(datum.toInt) match {
+      case Success(i) => Some(i)
+      case Failure(_) => Try(datum.toDouble) match {
+        case Success(d) => if (d.isValidInt) Some(d.toInt) else None
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def castToLong(datum: String): Option[Long] = {
+    Try(datum.toLong) match {
+      case Success(l) => Some(l)
+      case Failure(_) => Try(datum.toDouble) match {
+        case Success(d) => Try(d.toLong) match {
+          case Success(l) => Some(l)
+          case Failure(_) => None
+        }
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def parseNumber(datum: String)
+    = NumberFormat.getInstance(Locale.US).parse(datum)
+
+  private def castToFloat(datum: String, options: MinesetCSVOptions): Option[Float] = {
+    datum match {
+      case options.nanValue => Some(Float.NaN)
+      case options.negativeInf => Some(Float.NegativeInfinity)
+      case options.positiveInf => Some(Float.PositiveInfinity)
+      case _ => Try(datum.toFloat) match {
+        case Success(f) => Some(f)
+        case Failure(_) => Try(parseNumber(datum).floatValue()) match {
+          case Success(f) => Some(f)
+          case Failure(_) => None
+        }
+      }
+    }
+  }
+
+  private def castToDouble(datum: String, options: MinesetCSVOptions): Option[Double] = {
+    datum match {
+      case options.nanValue => Some(Double.NaN)
+      case options.negativeInf => Some(Double.NegativeInfinity)
+      case options.positiveInf => Some(Double.PositiveInfinity)
+      case _ => Try(datum.toDouble) match {
+        case Success(d) => Some(d)
+        case Failure(_) => Try(parseNumber(datum).doubleValue()) match {
+          case Success(d) => Some(d)
+          case Failure(_) => None
+        }
+      }
+    }
+  }
+
+  private def castToBoolean(datum: String): Option[Boolean] = {
+    Try(datum.toBoolean) match {
+      case Success(b) => Some(b)
+      case Failure(_) => None
+    }
+  }
+
+  private def castToTimestamp(datum: String, options: MinesetCSVOptions): Option[Long] = {
+    // This one will lose microseconds parts.
+    // See https://issues.apache.org/jira/browse/SPARK-10681.
+    Try(options.timestampFormat.parse(datum).getTime * 1000L) match {
+      case Success(time) => Some(time)
+      // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+      // compatibility.
+      case Failure(_) => Try(DateTimeUtils.stringToTime(datum).getTime * 1000L) match {
+        case Success(time) => Some(time)
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def castToDate(datum: String, options: MinesetCSVOptions): Option[Integer] = {
+    // This one will lose microseconds parts.
+    // See https://issues.apache.org/jira/browse/SPARK-10681.x
+    Try(DateTimeUtils.millisToDays(options.dateFormat.parse(datum).getTime)) match {
+      case Success(time) => Some(time)
+      // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
+      // compatibility.
+      case Failure(_) => Try(DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(datum).getTime)) match {
+        case Success(time) => Some(time)
+        case Failure(_) => None
+      }
+    }
+  }
+
+  private def castToDecimal(datum: String, dt: DecimalType): Option[Decimal] = {
+    Try {
+      val value = new BigDecimal(datum.replaceAll(",", ""))
+      Decimal(value, dt.precision, dt.scale)
+    } match {
+      case Success(d) => Some(d)
+      case Failure(_) => None
+    }
+  }
+
+  private def castToUTF8String(datum: String): Option[Any] = {
+    Try(UTF8String.fromString(datum)) match {
+      case Success(s) => Some(s)
+      case Failure(_) => None
+    }
+  }
+
   /**
    * Casts given string datum to specified type.
    * Currently we do not support complex types (ArrayType, MapType, StructType).
@@ -240,61 +369,29 @@ private[csv] object CSVTypeCast {
       options: CSVOptions = CSVOptions()): Any = {
 
     // datum can be null if the number of fields found is less than the length of the schema
-    if (datum == options.nullValue || datum == null) {
+    if(options.nullValues.contains(datum) || null == datum) {
       if (!nullable) {
         throw new RuntimeException(s"null value found but field $name is not nullable.")
       }
       null
     } else {
-      castType match {
-        case _: ByteType => datum.toByte
-        case _: ShortType => datum.toShort
-        case _: IntegerType => datum.toInt
-        case _: LongType => datum.toLong
-        case _: FloatType =>
-          datum match {
-            case options.nanValue => Float.NaN
-            case options.negativeInf => Float.NegativeInfinity
-            case options.positiveInf => Float.PositiveInfinity
-            case _ =>
-              Try(datum.toFloat)
-                .getOrElse(NumberFormat.getInstance(Locale.US).parse(datum).floatValue())
-          }
-        case _: DoubleType =>
-          datum match {
-            case options.nanValue => Double.NaN
-            case options.negativeInf => Double.NegativeInfinity
-            case options.positiveInf => Double.PositiveInfinity
-            case _ =>
-              Try(datum.toDouble)
-                .getOrElse(NumberFormat.getInstance(Locale.US).parse(datum).doubleValue())
-          }
-        case _: BooleanType => datum.toBoolean
-        case dt: DecimalType =>
-          val value = new BigDecimal(datum.replaceAll(",", ""))
-          Decimal(value, dt.precision, dt.scale)
-        case _: TimestampType =>
-          // This one will lose microseconds parts.
-          // See https://issues.apache.org/jira/browse/SPARK-10681.
-          Try(options.timestampFormat.parse(datum).getTime * 1000L)
-            .getOrElse {
-              // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-              // compatibility.
-              DateTimeUtils.stringToTime(datum).getTime * 1000L
-            }
-        case _: DateType =>
-          // This one will lose microseconds parts.
-          // See https://issues.apache.org/jira/browse/SPARK-10681.x
-          Try(DateTimeUtils.millisToDays(options.dateFormat.parse(datum).getTime))
-            .getOrElse {
-              // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
-              // compatibility.
-              DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(datum).getTime)
-            }
-        case _: StringType => UTF8String.fromString(datum)
-        case udt: UserDefinedType[_] => castTo(datum, name, udt.sqlType, nullable, options)
+      val value = castType match {
+        case _: ByteType => castToByte(datum)
+        case _: ShortType => castToShort(datum)
+        case _: IntegerType => castToInteger(datum)
+        case _: LongType => castToLong(datum)
+        case _: FloatType => castToFloat(datum, options)
+        case _: DoubleType => castToDouble(datum, options)
+        case _: BooleanType => castToBoolean(datum)
+        case dt: DecimalType => castToDecimal(datum, dt)
+        case _: TimestampType => castToTimestamp(datum, options)
+        case _: DateType => castToDate(datum, options)
+        case _: StringType => castToUTF8String(datum)
+//        case udt: UserDefinedType[_] => castTo(datum, name, udt.sqlType, nullable, options)
         case _ => throw new RuntimeException(s"Unsupported type: ${castType.typeName}")
       }
+
+      value.getOrElse(null)
     }
   }
 

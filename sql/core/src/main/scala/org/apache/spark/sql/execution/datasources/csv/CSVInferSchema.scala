@@ -22,8 +22,8 @@ import java.sql.Timestamp
 import java.text.NumberFormat
 import java.util.Locale
 
-import scala.util.control.Exception._
 import scala.util.{Failure, Success, Try}
+import scala.util.control.Exception._
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion

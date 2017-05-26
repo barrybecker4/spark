@@ -342,7 +342,7 @@ private[csv] object CSVTypeCast {
     }
   }
 
-  private def castToUTF8String(datum: String): Option[Any] = {
+  private def castToUTF8String(datum: String): Option[UTF8String] = {
     Try(UTF8String.fromString(datum)) match {
       case Success(s) => Some(s)
       case Failure(_) => None
@@ -389,7 +389,7 @@ private[csv] object CSVTypeCast {
         case _: TimestampType => castToTimestamp(datum, options)
         case _: DateType => castToDate(datum, options)
         case _: StringType => castToUTF8String(datum)
-        case udt: UserDefinedType[_] => castTo(datum, name, udt.sqlType, nullable, options)
+        case udt: UserDefinedType[_] => Some(castTo(datum, name, udt.sqlType, nullable, options))
         case _ => throw new RuntimeException(s"Unsupported type: ${castType.typeName}")
       }
 

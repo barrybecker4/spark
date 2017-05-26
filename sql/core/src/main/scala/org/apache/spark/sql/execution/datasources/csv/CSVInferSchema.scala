@@ -265,7 +265,7 @@ private[csv] object CSVTypeCast {
   private def parseNumber(datum: String)
     = NumberFormat.getInstance(Locale.US).parse(datum)
 
-  private def castToFloat(datum: String, options: MinesetCSVOptions): Option[Float] = {
+  private def castToFloat(datum: String, options: CSVOptions): Option[Float] = {
     datum match {
       case options.nanValue => Some(Float.NaN)
       case options.negativeInf => Some(Float.NegativeInfinity)
@@ -280,7 +280,7 @@ private[csv] object CSVTypeCast {
     }
   }
 
-  private def castToDouble(datum: String, options: MinesetCSVOptions): Option[Double] = {
+  private def castToDouble(datum: String, options: CSVOptions): Option[Double] = {
     datum match {
       case options.nanValue => Some(Double.NaN)
       case options.negativeInf => Some(Double.NegativeInfinity)
@@ -302,7 +302,7 @@ private[csv] object CSVTypeCast {
     }
   }
 
-  private def castToTimestamp(datum: String, options: MinesetCSVOptions): Option[Long] = {
+  private def castToTimestamp(datum: String, options: CSVOptions): Option[Long] = {
     // This one will lose microseconds parts.
     // See https://issues.apache.org/jira/browse/SPARK-10681.
     Try(options.timestampFormat.parse(datum).getTime * 1000L) match {
@@ -316,7 +316,7 @@ private[csv] object CSVTypeCast {
     }
   }
 
-  private def castToDate(datum: String, options: MinesetCSVOptions): Option[Integer] = {
+  private def castToDate(datum: String, options: CSVOptions): Option[Integer] = {
     // This one will lose microseconds parts.
     // See https://issues.apache.org/jira/browse/SPARK-10681.x
     Try(DateTimeUtils.millisToDays(options.dateFormat.parse(datum).getTime)) match {

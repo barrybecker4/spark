@@ -348,10 +348,11 @@ private[csv] object CSVTypeCast {
       case Success(time) => Some(time)
       // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
       // compatibility.
-      case Failure(_) if options.permissive => Try(DateTimeUtils.millisToDays(stringToTime(datum))) match {
-        case Success(time) => Some(time)
-        case Failure(_) => None
-      }
+      case Failure(_) if options.permissive =>
+        Try(DateTimeUtils.millisToDays(stringToTime(datum))) match {
+          case Success(time) => Some(time)
+          case Failure(_) => None
+        }
       case _ => Some(DateTimeUtils.millisToDays(stringToTime(datum)))
     }
   }
@@ -361,7 +362,8 @@ private[csv] object CSVTypeCast {
       Decimal(value, dt.precision, dt.scale)
   }
 
-  private def castToDecimal(datum: String, dt: DecimalType, options: CSVOptions): Option[Decimal] = {
+  private def castToDecimal(
+    datum: String, dt: DecimalType, options: CSVOptions): Option[Decimal] = {
     if (options.permissive) {
       Try {
         stringToDecimal(datum, dt)

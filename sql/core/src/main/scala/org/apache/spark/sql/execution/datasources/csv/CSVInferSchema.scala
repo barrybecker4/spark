@@ -219,46 +219,62 @@ private[csv] object CSVInferSchema {
 
 private[csv] object CSVTypeCast {
 
-  private def castToByte(datum: String): Option[Byte] = {
-    Try(datum.toByte) match {
-      case Success(i) => Some(i)
-      case Failure(_) => Try(datum.toDouble) match {
-        case Success(d) => if (d.isValidByte) Some(d.toByte) else None
-        case Failure(_) => None
-      }
-    }
-  }
-
-  private def castToShort(datum: String): Option[Short] = {
-    Try(datum.toShort) match {
-      case Success(i) => Some(i)
-      case Failure(_) => Try(datum.toDouble) match {
-        case Success(d) => if (d.isValidShort) Some(d.toShort) else None
-        case Failure(_) => None
-      }
-    }
-  }
-
-  private def castToInteger(datum: String): Option[Integer] = {
-    Try(datum.toInt) match {
-      case Success(i) => Some(i)
-      case Failure(_) => Try(datum.toDouble) match {
-        case Success(d) => if (d.isValidInt) Some(d.toInt) else None
-        case Failure(_) => None
-      }
-    }
-  }
-
-  private def castToLong(datum: String): Option[Long] = {
-    Try(datum.toLong) match {
-      case Success(l) => Some(l)
-      case Failure(_) => Try(datum.toDouble) match {
-        case Success(d) => Try(d.toLong) match {
-          case Success(l) => Some(l)
+  private def castToByte(datum: String, options: CSVOptions): Option[Byte] = {
+    if (options.permissive) {
+      Try(datum.toByte) match {
+        case Success(i) => Some(i)
+        case Failure(_) => Try(datum.toDouble) match {
+          case Success(d) => if (d.isValidByte) Some(d.toByte) else None
           case Failure(_) => None
         }
-        case Failure(_) => None
       }
+    } else {
+      Some(datum.toByte)
+    }
+  }
+
+  private def castToShort(datum: String, options: CSVOptions): Option[Short] = {
+    if (options.permissive) {
+      Try(datum.toShort) match {
+        case Success(i) => Some(i)
+        case Failure(_) => Try(datum.toDouble) match {
+          case Success(d) => if (d.isValidShort) Some(d.toShort) else None
+          case Failure(_) => None
+        }
+      }
+    } else {
+      Some(datum.toShort)
+    }
+  }
+
+  private def castToInteger(datum: String, options: CSVOptions): Option[Integer] = {
+    if (options.permissive) {
+      Try(datum.toInt) match {
+        case Success(i) => Some(i)
+        case Failure(_) => Try(datum.toDouble) match {
+          case Success(d) => if (d.isValidInt) Some(d.toInt) else None
+          case Failure(_) => None
+        }
+      }
+    } else {
+      Some(datum.toInt)
+    }
+  }
+
+  private def castToLong(datum: String, options: CSVOptions): Option[Long] = {
+    if (options.permissive) {
+      Try(datum.toLong) match {
+        case Success(l) => Some(l)
+        case Failure(_) => Try(datum.toDouble) match {
+          case Success(d) => Try(d.toLong) match {
+            case Success(l) => Some(l)
+            case Failure(_) => None
+          }
+          case Failure(_) => None
+        }
+      }
+    } else {
+      Some(datum.toLong)
     }
   }
 
@@ -272,10 +288,11 @@ private[csv] object CSVTypeCast {
       case options.positiveInf => Some(Float.PositiveInfinity)
       case _ => Try(datum.toFloat) match {
         case Success(f) => Some(f)
-        case Failure(_) => Try(parseNumber(datum).floatValue()) match {
+        case Failure(_) if options.permissive => Try(parseNumber(datum).floatValue()) match {
           case Success(f) => Some(f)
           case Failure(_) => None
         }
+        case _ => Some(parseNumber(datum).floatValue)
       }
     }
   }
@@ -287,20 +304,27 @@ private[csv] object CSVTypeCast {
       case options.positiveInf => Some(Double.PositiveInfinity)
       case _ => Try(datum.toDouble) match {
         case Success(d) => Some(d)
-        case Failure(_) => Try(parseNumber(datum).doubleValue()) match {
+        case Failure(_) if options.permissive => Try(parseNumber(datum).doubleValue()) match {
           case Success(d) => Some(d)
           case Failure(_) => None
         }
+        case _ => Some(parseNumber(datum).doubleValue())
       }
     }
   }
 
-  private def castToBoolean(datum: String): Option[Boolean] = {
-    Try(datum.toBoolean) match {
-      case Success(b) => Some(b)
-      case Failure(_) => None
+  private def castToBoolean(datum: String, options: CSVOptions): Option[Boolean] = {
+    if (options.permissive) {
+      Try(datum.toBoolean) match {
+        case Success(b) => Some(b)
+        case Failure(_) => None
+      }
+    } else {
+      Some(datum.toBoolean)
     }
   }
+
+  private def stringToTime(datum: String) = DateTimeUtils.stringToTime(datum).getTime
 
   private def castToTimestamp(datum: String, options: CSVOptions): Option[Long] = {
     // This one will lose microseconds parts.
@@ -309,10 +333,11 @@ private[csv] object CSVTypeCast {
       case Success(time) => Some(time)
       // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
       // compatibility.
-      case Failure(_) => Try(DateTimeUtils.stringToTime(datum).getTime * 1000L) match {
+      case Failure(_) if options.permissive => Try(stringToTime(datum) * 1000L) match {
         case Success(time) => Some(time)
         case Failure(_) => None
       }
+      case _ => Some(stringToTime(datum) * 1000L)
     }
   }
 
@@ -323,29 +348,40 @@ private[csv] object CSVTypeCast {
       case Success(time) => Some(time)
       // If it fails to parse, then tries the way used in 2.0 and 1.x for backwards
       // compatibility.
-      case Failure(_) => Try {
-        DateTimeUtils.millisToDays(DateTimeUtils.stringToTime(datum).getTime)
-      } match {
+      case Failure(_) if options.permissive => Try(DateTimeUtils.millisToDays(stringToTime(datum))) match {
         case Success(time) => Some(time)
         case Failure(_) => None
       }
+      case _ => Some(DateTimeUtils.millisToDays(stringToTime(datum)))
     }
   }
 
-  private def castToDecimal(datum: String, dt: DecimalType): Option[Decimal] = {
-    Try {
+  private def stringToDecimal(datum: String, dt: DecimalType): Decimal = {
       val value = new BigDecimal(datum.replaceAll(",", ""))
       Decimal(value, dt.precision, dt.scale)
-    } match {
-      case Success(d) => Some(d)
-      case Failure(_) => None
+  }
+
+  private def castToDecimal(datum: String, dt: DecimalType, options: CSVOptions): Option[Decimal] = {
+    if (options.permissive) {
+      Try {
+        stringToDecimal(datum, dt)
+      } match {
+        case Success(d) => Some(d)
+        case Failure(_) => None
+      }
+    } else {
+      Some(stringToDecimal(datum, dt))
     }
   }
 
-  private def castToUTF8String(datum: String): Option[UTF8String] = {
-    Try(UTF8String.fromString(datum)) match {
-      case Success(s) => Some(s)
-      case Failure(_) => None
+  private def castToUTF8String(datum: String, options: CSVOptions): Option[UTF8String] = {
+    if (options.permissive) {
+      Try(UTF8String.fromString(datum)) match {
+        case Success(s) => Some(s)
+        case Failure(_) => None
+      }
+    } else {
+      Some(UTF8String.fromString(datum))
     }
   }
 
@@ -378,17 +414,17 @@ private[csv] object CSVTypeCast {
       null
     } else {
       val value = castType match {
-        case _: ByteType => castToByte(datum)
-        case _: ShortType => castToShort(datum)
-        case _: IntegerType => castToInteger(datum)
-        case _: LongType => castToLong(datum)
+        case _: ByteType => castToByte(datum, options)
+        case _: ShortType => castToShort(datum, options)
+        case _: IntegerType => castToInteger(datum, options)
+        case _: LongType => castToLong(datum, options)
         case _: FloatType => castToFloat(datum, options)
         case _: DoubleType => castToDouble(datum, options)
-        case _: BooleanType => castToBoolean(datum)
-        case dt: DecimalType => castToDecimal(datum, dt)
+        case _: BooleanType => castToBoolean(datum, options)
+        case dt: DecimalType => castToDecimal(datum, dt, options)
         case _: TimestampType => castToTimestamp(datum, options)
         case _: DateType => castToDate(datum, options)
-        case _: StringType => castToUTF8String(datum)
+        case _: StringType => castToUTF8String(datum, options)
         case udt: UserDefinedType[_] => Some(castTo(datum, name, udt.sqlType, nullable, options))
         case _ => throw new RuntimeException(s"Unsupported type: ${castType.typeName}")
       }

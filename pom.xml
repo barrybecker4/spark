@@ -57,6 +57,13 @@
     <system>JIRA</system>
     <url>https://issues.apache.org/jira/browse/SPARK</url>
   </issueManagement>
+  <distributionManagement>
+    <repository>
+      <id>central</id>
+      <name>esi-components-releases</name>
+      <url>http://esi-components.esi-group.com/artifactory/tests</url>
+    </repository>
+  </distributionManagement>
 
   <prerequisites>
     <maven>${maven.version}</maven>

@@ -61,7 +61,7 @@
     <repository>
       <id>central</id>
       <name>esi-components-releases</name>
-      <url>http://esi-components.esi-group.com/artifactory/tests</url>
+      <url>http://esi-components.esi-group.com/artifactory/release</url>
     </repository>
   </distributionManagement>
 

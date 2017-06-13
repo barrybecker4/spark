@@ -209,15 +209,14 @@ class GeneralNaiveBayes @Since("2.3.0") (
 }
 
 
-
 @Since("2.3.0")
 object GeneralNaiveBayes extends DefaultParamsReadable[GeneralNaiveBayes] {
 
   /**
-    * The evidence value to use if the conditional probability is exactly 1 (rare)
-    * The evidence is actually infinite in this case, but it's better to limit it
-    * to allow the small possibility of other class values in the prediction.
-    */
+   * The evidence value to use if the conditional probability is exactly 1 (rare)
+   * The evidence is actually infinite in this case, but it's better to limit it
+   * to allow the small possibility of other class values in the prediction.
+   */
   val MAX_EVIDENCE = 1000.0
 
   private[GeneralNaiveBayes] def requireNonnegativeValues(v: Vector): Unit = {
@@ -279,8 +278,21 @@ class GeneralNaiveBayesModel private[ml] (
   private val laplaceDenom = laplaceSmoothing * numClasses
 
   /**
-   * Convert the weight (typically counts) to evidence and use
+   * Convert the weight (typically counts) to conditional probabilities and use
    * laplace correction if specified.
+   */
+  val probabilityData = modelData.map(dataForFeature => {
+    dataForFeature.map(dataForValue => {
+      var i = 0
+      dataForValue.map(v => {
+        val denom = labelWeights(i) + laplaceDenom
+        i += 1
+        (v + laplaceSmoothing) / denom
+      })
+    })
+  })
+  /**
+   * Convert the conditional probabilities to evidences.
    * Evidence is -log(1 - conditionalProbability)
    * Take the log of the conditional probability so evidences will add.
    * This avoids numerical underflow when many features.
@@ -288,17 +300,11 @@ class GeneralNaiveBayesModel private[ml] (
    * The MAX_EVIDENCE value will only be used in cases when there is no laplace smoothing
    * and there are no occurences of a class within a specific attribute value.
    */
-  val evidenceData = modelData.map(dataForFeature => {
-    dataForFeature.map(dataForValue => {
-      var i = 0
-      dataForValue.map(v => {
-        val denom = labelWeights(i) + laplaceDenom
-        i += 1
-        val compConditionalProb = 1.0 - (v + laplaceSmoothing) / denom
-        if (compConditionalProb == 0.0) MAX_EVIDENCE else -Math.log(compConditionalProb)
-      })
-    })
-  })
+  val evidenceData = probabilityData.map(_.map(_.map(prob => {
+      val compConditionalProb = 1.0 - prob
+      if (compConditionalProb == 0.0) MAX_EVIDENCE else -Math.log(compConditionalProb)
+    }))
+  )
 
   /**
    * Applies the model. The result is a conditional probability distribution for class values.
@@ -408,8 +414,6 @@ object GeneralNaiveBayesModel extends MLReadable[GeneralNaiveBayesModel] {
       val modelData: Array[Array[Array[Double]]] =
         parse(modelDataStr).extract[Array[Array[Array[Double]]]]
       // println(" READ modelDataJson ")
-      // GeneralNaiveBayes.printModel(modelData)
-      // println("")
 
       val model = new GeneralNaiveBayesModel(metadata.uid,
         labelWeights, modelData, laplaceSmoothing)

@@ -23,6 +23,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.annotation.Since
+import org.apache.spark.ml.classification.GeneralNaiveBayes.MAX_EVIDENCE
 import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param.{DoubleParam, ParamMap, ParamValidators}
@@ -212,6 +213,13 @@ class GeneralNaiveBayes @Since("2.3.0") (
 @Since("2.3.0")
 object GeneralNaiveBayes extends DefaultParamsReadable[GeneralNaiveBayes] {
 
+  /**
+    * The evidence value to use if the conditional probability is exactly 1 (rare)
+    * The evidence is actually infinite in this case, but it's better to limit it
+    * to allow the small possibility of other class values in the prediction.
+    */
+  val MAX_EVIDENCE = 1000.0
+
   private[GeneralNaiveBayes] def requireNonnegativeValues(v: Vector): Unit = {
     val values = v match {
       case sv: SparseVector => sv.values
@@ -266,20 +274,28 @@ class GeneralNaiveBayesModel private[ml] (
 
   private val totalWeight: Double = labelWeights.toArray.sum
   private val priorProbabilities: Array[Double] = labelWeights.toArray.map(_ / totalWeight)
+  private val priorEvidence: Array[Double] = priorProbabilities.map(x => -Math.log(1.0 - x))
 
   private val laplaceDenom = laplaceSmoothing * numClasses
 
   /**
-   * Convert the weight (typically counts) to probabilities and use
+   * Convert the weight (typically counts) to evidence and use
    * laplace correction if specified.
+   * Evidence is -log(1 - conditionalProbability)
+   * Take the log of the conditional probability so evidences will add.
+   * This avoids numerical underflow when many features.
+   * See https://nlp.stanford.edu/IR-book/pdf/13bayes.pdf
+   * The MAX_EVIDENCE value will only be used in cases when there is no laplace smoothing
+   * and there are no occurences of a class within a specific attribute value.
    */
-  val probabilityData = modelData.map(dataForFeature => {
+  val evidenceData = modelData.map(dataForFeature => {
     dataForFeature.map(dataForValue => {
       var i = 0
       dataForValue.map(v => {
         val denom = labelWeights(i) + laplaceDenom
         i += 1
-        (v + laplaceSmoothing) / denom
+        val compConditionalProb = 1.0 - (v + laplaceSmoothing) / denom
+        if (compConditionalProb == 0.0) MAX_EVIDENCE else -Math.log(compConditionalProb)
       })
     })
   })
@@ -291,22 +307,23 @@ class GeneralNaiveBayesModel private[ml] (
    * @return raw, unnormalized relative probabilities.
    */
   override protected def predictRaw(features: Vector): Vector = {
-    val probs: Array[Double] = priorProbabilities.clone()
+    val evidence: Array[Double] = priorEvidence.clone()
     var featureIdx = 0
     // features.foreachActive((featureIdx, value) => {  // this should work but gave wrong results
     features.toArray.foreach(value => {
       val v = value.toInt
-      val featureProbs = probabilityData(featureIdx)
+      val featureEvidence = evidenceData(featureIdx)
       // There may occasionally be values in the test data that were not in the training data.
       // In these cases v will be >= featureProbs.length. Such values are ignored.
-      if (v < featureProbs.length) {
-        val md = featureProbs(v)
+      if (v < featureEvidence.length) {
+        val md = featureEvidence(v)
         featureIdx += 1
-        for (i <- 0 until numClasses)
-          probs(i) *= md(i)
+        for (i <- 0 until numClasses) {
+          evidence(i) += md(i)
+        }
       }
     })
-    Vectors.dense(probs)
+    Vectors.dense(evidence)
   }
 
   override protected def raw2probabilityInPlace(rawPrediction: Vector): Vector = {

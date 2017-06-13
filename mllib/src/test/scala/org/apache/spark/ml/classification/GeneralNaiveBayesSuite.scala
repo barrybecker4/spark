@@ -42,13 +42,17 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     dataset = generateSmallRandomNaiveBayesInput(42).toDF()
   }
 
-  def validatePrediction(predictionAndLabels: DataFrame): Unit = {
+  /**
+   * @param predictionAndLabels the predictions with label
+   * @param expPctCorrect the expected number of correct predictions.
+   */
+  def validatePrediction(predictionAndLabels: DataFrame, expPctCorrect: Double): Unit = {
     val numOfCorrectPredictions = predictionAndLabels.collect().count {
       case Row(prediction: Double, label: Double) =>
         prediction == label
     }
-    // At least 80% of the predictions should be correct.
-    assert(numOfCorrectPredictions > (0.8 * predictionAndLabels.count()))
+    // At least expPctCorrect of the predictions should be correct.
+    assert(numOfCorrectPredictions > (expPctCorrect * predictionAndLabels.count()))
   }
 
   def validateModelFit(expLabelWeights: Array[Double],
@@ -57,13 +61,13 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
                        model: GeneralNaiveBayesModel): Unit = {
     assert(0.1 ~== 0.1001  absTol 0.01, "mismatch") // approx equal
 
-    assert(expLabelWeights === model.labelWeights.toArray)
-    assert(1.0 === model.laplaceSmoothing)
+    assert(model.labelWeights.toArray === expLabelWeights)
+    assert(model.laplaceSmoothing === 1.0)
 
     val expNumFeatures = expModelData.length
     val expNumClasses = expModelData(0)(0).length
-    assert(expNumClasses === model.numClasses)
-    assert(expNumFeatures === model.numFeatures)
+    assert(model.numClasses === expNumClasses)
+    assert(model.numFeatures === expNumFeatures)
 
     assert(model.modelData === expModelData)
     assert(model.probabilityData === expProbData)
@@ -103,34 +107,31 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     val nb = new GeneralNaiveBayes().setSmoothing(1.0)
     val model = nb.fit(testDataset)
 
-    val expLabelWeights = Array(1.0, 0.0, 2.0)
+    val expLabelWeights = Array(2.0, 1.0, 3.0)
     val expModelData = Array(
-      Array(Array(0.0, 0.0, 0.0), Array(0.0, 0.0, 1.0), Array(1.0, 0.0, 1.0)),
-      Array(Array(0.0, 0.0, 0.0), Array(0.0, 0.0, 1.0), Array(1.0, 0.0, 1.0)),
-      Array(Array(1.0, 0.0, 1.0), Array(0.0, 0.0, 1.0)),
-      Array(Array(0.0, 0.0, 0.0), Array(0.0, 0.0, 0.0), Array(1.0, 0.0, 1.0), Array(0.0, 0.0, 1.0))
+      Array(Array(1.0, 1.0, 1.0), Array(0.0, 0.0, 1.0), Array(1.0, 0.0, 1.0)),
+      Array(Array(1.0, 0.0, 0.0), Array(0.0, 1.0, 1.0), Array(1.0, 0.0, 2.0)),
+      Array(Array(2.0, 1.0, 2.0), Array(0.0, 0.0, 1.0)),
+      Array(Array(1.0, 0.0, 0.0), Array(0.0, 1.0, 0.0), Array(1.0, 0.0, 2.0), Array(0.0, 0.0, 1.0))
     )
+
     val expProbData = Array(
       Array(
-        Array(0.25, 0.3333333333333333, 0.2),
-        Array(0.25, 0.3333333333333333, 0.4),
-        Array(0.5, 0.3333333333333333, 0.4)
-      ),
+        Array(0.4, 0.5, 0.3333333333333333),
+        Array(0.2, 0.25, 0.3333333333333333),
+        Array(0.4, 0.25, 0.3333333333333333)),
       Array(
-        Array(0.25, 0.3333333333333333, 0.2),
-        Array(0.25, 0.3333333333333333, 0.4),
-        Array(0.5, 0.3333333333333333, 0.4)
-      ),
+        Array(0.4, 0.25, 0.16666666666666666),
+        Array(0.2, 0.5, 0.3333333333333333),
+        Array(0.4, 0.25, 0.5)),
       Array(
-        Array(0.5, 0.3333333333333333, 0.4),
-        Array(0.25, 0.3333333333333333, 0.4)
-      ),
+        Array(0.6, 0.5, 0.5),
+        Array(0.2, 0.25, 0.3333333333333333)),
       Array(
-        Array(0.25, 0.3333333333333333, 0.2),
-        Array(0.25, 0.3333333333333333, 0.2),
-        Array(0.5, 0.3333333333333333, 0.4),
-        Array(0.25, 0.3333333333333333, 0.4)
-      )
+        Array(0.4, 0.25, 0.16666666666666666),
+        Array(0.2, 0.5, 0.16666666666666666),
+        Array(0.4, 0.25, 0.5),
+        Array(0.2, 0.25, 0.3333333333333333))
     )
 
     validateModelFit(expLabelWeights, expModelData, expProbData, model)
@@ -139,11 +140,11 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     val validationDataset =
       generateSmallRandomNaiveBayesInput(17).toDF()
 
-    // validationDataset.show()
     val predictionAndLabels: DataFrame =
       model.transform(validationDataset).select("prediction", "label")
-    // predictionAndLabels.show()
-    validatePrediction(predictionAndLabels)
+
+    // Since the labels are random, we do not expect high accuracy
+    validatePrediction(predictionAndLabels, 0.2)
   }
 
   test("Naive Bayes on Typical Data") {
@@ -241,11 +242,12 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
 
     val validationDataset = generateTypicalNaiveBayesInput().toDF()
 
-    // validationDataset.show()
+
     val predictionAndLabels: DataFrame =
       model.transform(validationDataset).select("prediction", "label")
-    // predictionAndLabels.show()
-    validatePrediction(predictionAndLabels)
+
+    // expect about 90% accuracy
+    validatePrediction(predictionAndLabels, 0.8)
   }
 
   test("Naive Bayes with weighted samples") {
@@ -258,25 +260,29 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     val unweightedModel = nb.fit(weightedData)
     val overSampledModel = nb.fit(overSampledData)
     val weightedModel = nb.setWeightCol("weight").fit(weightedData)
+    var numUnweightedVsOverSampledDifferences = 0
 
     for (
       i <- 0 until unweightedModel.numFeatures;
       j <- unweightedModel.modelData(i).indices;
       k <- 0 until unweightedModel.numClasses
     ) {
+      // Oversampled and weighted models should be the same
       assert(weightedModel.modelData(i)(j)(k) ~==
         overSampledModel.modelData(i)(j)(k) relTol 0.001,
         s"${weightedModel.modelData(i)(j)(k)} did not match " +
           s"${overSampledModel.modelData(i)(j)(k)} at position $i, $j, $k"
       )
 
-//      // there is no support for weighting yet.
-//      assert(unweightedModel.modelData(i)(j)(k) !~=
-//        overSampledModel.modelData(i)(j)(k) relTol 0.001,
-//        s"${unweightedModel.modelData(i)(j)(k)} did not match " +
-//          s"${overSampledModel.modelData(i)(j)(k)} at position $i, $j, $k"
-//      )
+      // unweighted and overSampled should be different
+      val unWtd = unweightedModel.modelData(i)(j)(k)
+      val overSmp = overSampledModel.modelData(i)(j)(k)
+      if (Math.abs(unWtd - overSmp) > 0.001) {
+        numUnweightedVsOverSampledDifferences += 1
+      }
     }
+    assert(numUnweightedVsOverSampledDifferences > 10,
+      "There were few differences between unweighted and overSampled. There should have been many.")
   }
 
   test("detect negative values") {
@@ -340,6 +346,11 @@ object GeneralNaiveBayesSuite {
     "smoothing" -> 0.1
   )
 
+  /**
+   * @param p random number in range [0, 1)
+   * @param pi array of doubles [0, 1) that gives the probability distribution.
+   * @return randomly selects one of the labels given the probability distribution pi
+   */
   private def calcLabel(p: Double, pi: Array[Double]): Int = {
     var sum = 0.0
     for (j <- pi.indices) {
@@ -361,11 +372,16 @@ object GeneralNaiveBayesSuite {
     val rawData: Array[Array[Double]] = Array(
       Array(1.0, 2.0, 0.0, 2.0),
       Array(2.0, 1.0, 1.0, 3.0),
-      Array(2.0, 2.0, 0.0, 2.0)
+      Array(2.0, 2.0, 0.0, 2.0),
+      Array(0.0, 0.0, 0.0, 0.0),
+      Array(0.0, 1.0, 0.0, 1.0),
+      Array(0.0, 2.0, 0.0, 2.0)
     )
 
+    val prob = 1.0 / numLabels
+    val probs = (0 until numLabels).map(x => prob).toArray
     for (row <- rawData) yield {
-      val y = calcLabel(rnd.nextDouble(), (0 until numLabels).map(x => 1.0 / numLabels).toArray)
+      val y = calcLabel(rnd.nextDouble(), probs)
       LabeledPoint(y, Vectors.dense(row))
     }
   }

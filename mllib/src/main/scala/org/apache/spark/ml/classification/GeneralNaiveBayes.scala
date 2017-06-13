@@ -298,7 +298,7 @@ class GeneralNaiveBayesModel private[ml] (
    * This avoids numerical underflow when many features.
    * See https://nlp.stanford.edu/IR-book/pdf/13bayes.pdf
    * The MAX_EVIDENCE value will only be used in cases when there is no laplace smoothing
-   * and there are no occurences of a class within a specific attribute value.
+   * and there are no occurrences of a class within a specific attribute value.
    */
   val evidenceData = probabilityData.map(_.map(_.map(prob => {
       val compConditionalProb = 1.0 - prob
@@ -307,10 +307,10 @@ class GeneralNaiveBayesModel private[ml] (
   )
 
   /**
-   * Applies the model. The result is a conditional probability distribution for class values.
-   * For each feature value, multiply conditional probabilities together to
+   * Applies the model. The result is a evidence distribution for class values.
+   * For each feature value, add evidences together to
    * get a final raw distribution
-   * @return raw, unnormalized relative probabilities.
+   * @return raw, unnormalized relative evidence.
    */
   override protected def predictRaw(features: Vector): Vector = {
     val evidence: Array[Double] = priorEvidence.clone()

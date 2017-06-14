@@ -23,7 +23,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.annotation.Since
-import org.apache.spark.ml.classification.GeneralNaiveBayes.MAX_EVIDENCE
+import org.apache.spark.ml.classification.GeneralNaiveBayes.MAX_LOG_PROB
 import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param.{DoubleParam, ParamMap, ParamValidators}
@@ -217,7 +217,7 @@ object GeneralNaiveBayes extends DefaultParamsReadable[GeneralNaiveBayes] {
    * The evidence is actually infinite in this case, but it's better to limit it
    * to allow the small possibility of other class values in the prediction.
    */
-  val MAX_EVIDENCE = 1000.0
+  val MAX_LOG_PROB = 100.0
 
   private[GeneralNaiveBayes] def requireNonnegativeValues(v: Vector): Unit = {
     val values = v match {
@@ -301,7 +301,7 @@ class GeneralNaiveBayesModel private[ml] (
    * and there are no occurrences of a class within a specific attribute value.
    */
   val logProbabilityData = probabilityData.map(_.map(_.map(prob => {
-      if (prob == 0.0) -MAX_EVIDENCE else Math.log(prob)
+      if (prob == 0.0) -MAX_LOG_PROB else Math.log(prob)
     }))
   )
 
@@ -332,7 +332,7 @@ class GeneralNaiveBayesModel private[ml] (
     // If the log probabilities got really small, update them so they will not be small.
     // This is the part that prevents underflow.
     val probs =
-      if (largestExp < -100.0) logProbs.map(_ - largestExp).map(math.exp)
+      if (largestExp < -MAX_LOG_PROB) logProbs.map(_ - largestExp).map(math.exp)
       else logProbs.map(math.exp)
     Vectors.dense(probs)
   }

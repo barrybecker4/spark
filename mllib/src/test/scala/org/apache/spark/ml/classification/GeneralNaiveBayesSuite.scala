@@ -327,7 +327,7 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
   }
 
 
-  test("Naive Bayes on potentially underflowing (numRows = 10 numCols = 5 no lapalce)") {
+  test("Naive Bayes on potentially underflowing (numRows = 10 numCols = 5, no lapalce)") {
 
     val numRows = 10
     val numColumns = 5
@@ -347,15 +347,15 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     )
 
     val expLogProbabilityData = Array(
-      Array(Array(0.0, -1.3862943611198906), Array(-1000.0, -0.2876820724517809)),
-      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0)),
-      Array(Array(0.0, -1000.0), Array(-1000.0, 0.0)),
-      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0)),
-      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0))
+      Array(Array(0.0, -1.3862943611198906), Array(-100.0, -0.2876820724517809)),
+      Array(Array(-0.1823215567939546, -100.0), Array(-1.791759469228055, 0.0)),
+      Array(Array(0.0, -100.0), Array(-100.0, 0.0)),
+      Array(Array(-0.1823215567939546, -100.0), Array(-1.791759469228055, 0.0)),
+      Array(Array(-0.1823215567939546, -100.0), Array(-1.791759469228055, 0.0))
     )
 
-
-    validateModelFit(expLabelWeights, expModelData, Some(expLogProbabilityData), model, laplaceSmoothing)
+    validateModelFit(expLabelWeights, expModelData,
+      Some(expLogProbabilityData), model, laplaceSmoothing)
     assert(model.hasParent)
 
     val validationDataset =

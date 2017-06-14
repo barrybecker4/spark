@@ -61,7 +61,7 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
 
   def validateModelFit(expLabelWeights: Array[Double],
                        expModelData: Array[Array[Array[Double]]],
-                       expEvidenceData: Option[Array[Array[Array[Double]]]],
+                       expLogProbabilityData: Option[Array[Array[Array[Double]]]],
                        model: GeneralNaiveBayesModel,
                        expLaplaceSmoothing: Double = 1.0): Unit = {
     assert(0.1 ~== 0.1001  absTol 0.01, "mismatch") // approx equal
@@ -75,8 +75,8 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     assert(model.numFeatures === expNumFeatures)
 
     assert(model.modelData === expModelData)
-    if (expEvidenceData.isDefined) {
-      assert(model.evidenceData === expEvidenceData.get)
+    if (expLogProbabilityData.isDefined) {
+      assert(model.logProbabilityData === expLogProbabilityData.get)
     }
   }
 
@@ -122,27 +122,26 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
       Array(Array(1.0, 0.0, 0.0), Array(0.0, 1.0, 0.0), Array(1.0, 0.0, 2.0), Array(0.0, 0.0, 1.0))
     )
 
-    val expEvidenceData = Array(
+    val expLogProbabilityData = Array(
       Array(
-        Array(0.5108256237659907, 0.6931471805599453, 0.4054651081081643),
-        Array(0.2231435513142097, 0.2876820724517809, 0.4054651081081643),
-        Array(0.5108256237659907, 0.2876820724517809, 0.4054651081081643)),
+        Array(-0.916290731874155, -0.6931471805599453, -1.0986122886681098),
+        Array(-1.6094379124341003, -1.3862943611198906, -1.0986122886681098),
+        Array(-0.916290731874155, -1.3862943611198906, -1.0986122886681098)),
       Array(
-        Array(0.5108256237659907, 0.2876820724517809, 0.1823215567939546),
-        Array(0.2231435513142097, 0.6931471805599453, 0.4054651081081643),
-        Array(0.5108256237659907, 0.2876820724517809, 0.6931471805599453)),
+        Array(-0.916290731874155, -1.3862943611198906, -1.791759469228055),
+        Array(-1.6094379124341003, -0.6931471805599453, -1.0986122886681098),
+        Array(-0.916290731874155, -1.3862943611198906, -0.6931471805599453)),
       Array(
-        Array(0.916290731874155, 0.6931471805599453, 0.6931471805599453),
-        Array(0.2231435513142097, 0.2876820724517809, 0.4054651081081643)),
+        Array(-0.5108256237659907, -0.6931471805599453, -0.6931471805599453),
+        Array(-1.6094379124341003, -1.3862943611198906, -1.0986122886681098)),
       Array(
-        Array(0.5108256237659907, 0.2876820724517809, 0.1823215567939546),
-        Array(0.2231435513142097, 0.6931471805599453, 0.1823215567939546),
-        Array(0.5108256237659907, 0.2876820724517809, 0.6931471805599453),
-        Array(0.2231435513142097, 0.2876820724517809, 0.4054651081081643))
+        Array(-0.916290731874155, -1.3862943611198906, -1.791759469228055),
+        Array(-1.6094379124341003, -0.6931471805599453, -1.791759469228055),
+        Array(-0.916290731874155, -1.3862943611198906, -0.6931471805599453),
+        Array(-1.6094379124341003, -1.3862943611198906, -1.0986122886681098))
     )
 
-
-    validateModelFit(expLabelWeights, expModelData, Some(expEvidenceData), model)
+    validateModelFit(expLabelWeights, expModelData, Some(expLogProbabilityData), model)
     assert(model.hasParent)
 
     val validationDataset =
@@ -205,47 +204,47 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
         Array(1.0, 0.0)
       )
     )
-    val expEvidenveData = Array(
+    val expLogProbabilityData = Array(
       Array(
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.4054651081081643, 1.6094379124341005),
-        Array(0.25131442828090605, 0.2231435513142097)),
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.0986122886681098, -0.2231435513142097),
+        Array(-1.5040773967762742, -1.6094379124341003)),
       Array(
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.25131442828090605, 0.5108256237659907),
-        Array(0.8109302162163288, 0.5108256237659907),
-        Array(0.11778303565638351, 0.5108256237659907),
-        Array(0.25131442828090605, 0.2231435513142097)),
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-1.5040773967762742, -0.916290731874155),
+        Array(-0.587786664902119, -0.916290731874155),
+        Array(-2.1972245773362196, -0.916290731874155),
+        Array(-1.5040773967762742, -1.6094379124341003)),
       Array(
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.11778303565638351, 1.6094379124341005),
-        Array(0.8109302162163288, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097)),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-2.1972245773362196, -0.2231435513142097),
+        Array(-0.587786664902119, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003)),
       Array(
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.25131442828090605, 0.5108256237659907),
-        Array(0.4054651081081643, 0.5108256237659907),
-        Array(0.587786664902119, 0.5108256237659907),
-        Array(0.11778303565638351, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097)),
-      Array(
-        Array(0.4054651081081643, 0.5108256237659907),
-        Array(0.587786664902119, 0.916290731874155),
-        Array(0.25131442828090605, 0.2231435513142097),
-        Array(0.25131442828090605, 0.2231435513142097))
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-1.5040773967762742, -0.916290731874155),
+        Array(-1.0986122886681098, -0.916290731874155),
+        Array(-0.8109302162163288, -0.916290731874155),
+        Array(-2.1972245773362196, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003)),
+      Array(Array(-1.0986122886681098, -0.916290731874155),
+        Array(-0.8109302162163288, -0.5108256237659907),
+        Array(-1.5040773967762742, -1.6094379124341003),
+        Array(-1.5040773967762742, -1.6094379124341003))
     )
 
 
+
     // GeneralNaiveBayes.printModel(model.modelData)
-    validateModelFit(expLabelWeights, expModelData, Some(expEvidenveData), model)
+    validateModelFit(expLabelWeights, expModelData, Some(expLogProbabilityData), model)
     assert(model.hasParent)
 
     val validationDataset = generateTypicalNaiveBayesInput().toDF()
@@ -283,36 +282,38 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
 
     val expEvidenveData = Array(
       Array(
-        Array(2.1362544010742437, 0.40712210931579396),
-        Array(0.1256724774998575, 1.09530650053361)),
+        Array(-0.1256724774998575, -1.0953065005336102),
+        Array(-2.1362544010742437, -0.40712210931579396)),
       Array(
-        Array(7.439559309133453, 0.0033167526259939265),
-        Array(5.877167374577152E-4, 5.710427017374831)),
+        Array(-5.87716737457604E-4, -5.71042701737487),
+        Array(-7.43955930913332, -0.003316752625994038)),
       Array(
-        Array(7.439559309133453, 0.40712210931579396),
-        Array(5.877167374577152E-4, 1.09530650053361)),
+        Array(-5.87716737457604E-4, -1.0953065005336102),
+        Array(-7.43955930913332, -0.40712210931579396)),
       Array(
-        Array(2.1362544010742437, 0.0033167526259939265),
-        Array(0.1256724774998575, 5.710427017374831)),
+        Array(-0.1256724774998575, -5.71042701737487),
+        Array(-2.1362544010742437, -0.003316752625994038)),
       Array(
-        Array(2.1362544010742437, 0.0033167526259939265),
-        Array(0.1256724774998575, 5.710427017374831)),
+        Array(-0.1256724774998575, -5.71042701737487),
+        Array(-2.1362544010742437, -0.003316752625994038)),
       Array(
-        Array(2.1362544010742437, 0.0033167526259939265),
-        Array(0.1256724774998575, 5.710427017374831)),
+        Array(-0.1256724774998575, -5.71042701737487),
+        Array(-2.1362544010742437, -0.003316752625994038)),
       Array(
-        Array(7.439559309133453, 0.0033167526259939265),
-        Array(5.877167374577152E-4, 5.710427017374831)),
+        Array(-5.87716737457604E-4, -5.71042701737487),
+        Array(-7.43955930913332, -0.003316752625994038)),
       Array(
-        Array(2.1362544010742437, 0.0033167526259939265),
-        Array(0.1256724774998575, 5.710427017374831)),
+        Array(-0.1256724774998575, -5.71042701737487),
+        Array(-2.1362544010742437, -0.003316752625994038)),
       Array(
-        Array(7.439559309133453, 0.0033167526259939265),
-        Array(5.877167374577152E-4, 5.710427017374831)),
+        Array(-5.87716737457604E-4, -5.71042701737487),
+        Array(-7.43955930913332, -0.003316752625994038)),
       Array(
-        Array(1.2229532080484546, 0.0033167526259939265),
-        Array(0.3486494870533359, 5.710427017374831))
+        Array(-0.3486494870533359, -5.71042701737487),
+        Array(-1.2229532080484546, -0.003316752625994038)
+      )
     )
+
 
     validateModelFit(expLabelWeights, expModelData, Some(expEvidenveData), model, laplaceSmoothing)
     assert(model.hasParent)
@@ -345,15 +346,16 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
       Array(Array(5.0, 0.0), Array(1.0, 4.0))
     )
 
-    val expEvidenveData = Array(
-      Array(Array(1000.0, 0.2876820724517809), Array(-0.0, 1.3862943611198906)),
-      Array(Array(1.7917594692280552, -0.0), Array(0.1823215567939546, 1000.0)),
-      Array(Array(1000.0, -0.0), Array(-0.0, 1000.0)),
-      Array(Array(1.7917594692280552, -0.0), Array(0.1823215567939546, 1000.0)),
-      Array(Array(1.7917594692280552, -0.0), Array(0.1823215567939546, 1000.0))
+    val expLogProbabilityData = Array(
+      Array(Array(0.0, -1.3862943611198906), Array(-1000.0, -0.2876820724517809)),
+      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0)),
+      Array(Array(0.0, -1000.0), Array(-1000.0, 0.0)),
+      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0)),
+      Array(Array(-0.1823215567939546, -1000.0), Array(-1.791759469228055, 0.0))
     )
 
-    validateModelFit(expLabelWeights, expModelData, Some(expEvidenveData), model, laplaceSmoothing)
+
+    validateModelFit(expLabelWeights, expModelData, Some(expLogProbabilityData), model, laplaceSmoothing)
     assert(model.hasParent)
 
     val validationDataset =
@@ -431,8 +433,8 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     val predictionAndLabels: DataFrame =
       model.transform(validationDataset).select("prediction", "label")
 
-    // should be at least 99% correct. Before change, it fails because of numerical underflow.
-    validatePrediction(predictionAndLabels, 0.99)
+    // should be at least 90% correct. Before change, it fails because of numerical underflow.
+    validatePrediction(predictionAndLabels, 0.90)
   }
 
 
@@ -503,7 +505,7 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
       assert(model.labelWeights === model2.labelWeights)
       assert(model.predictionCol === model2.predictionCol)
       assert(model.modelData === model2.modelData)
-      assert(model.evidenceData === model2.evidenceData)
+      assert(model.logProbabilityData === model2.logProbabilityData)
     }
     val nb = new GeneralNaiveBayes()
     testEstimatorAndModelReadWrite(nb,

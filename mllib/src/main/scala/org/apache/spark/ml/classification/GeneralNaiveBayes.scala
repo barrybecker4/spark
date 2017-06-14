@@ -273,7 +273,7 @@ class GeneralNaiveBayesModel private[ml] (
 
   private val totalWeight: Double = labelWeights.toArray.sum
   private val priorProbabilities: Array[Double] = labelWeights.toArray.map(_ / totalWeight)
-  private val priorEvidence: Array[Double] = priorProbabilities.map(x => -Math.log(1.0 - x))
+  private val priorLogProbabilities: Array[Double] = priorProbabilities.map(Math.log)
 
   private val laplaceDenom = laplaceSmoothing * numClasses
 
@@ -292,44 +292,44 @@ class GeneralNaiveBayesModel private[ml] (
     })
   })
   /**
-   * Convert the conditional probabilities to evidences.
+   * Convert the conditional probabilities to log probabilities.
    * Evidence is -log(1 - conditionalProbability)
-   * Take the log of the conditional probability so evidences will add.
+   * Take the log of the conditional probability so they will add.
    * This avoids numerical underflow when many features.
    * See https://nlp.stanford.edu/IR-book/pdf/13bayes.pdf
    * The MAX_EVIDENCE value will only be used in cases when there is no laplace smoothing
    * and there are no occurrences of a class within a specific attribute value.
    */
-  val evidenceData = probabilityData.map(_.map(_.map(prob => {
-      val compConditionalProb = 1.0 - prob
-      if (compConditionalProb == 0.0) MAX_EVIDENCE else -Math.log(compConditionalProb)
+  val logProbabilityData = probabilityData.map(_.map(_.map(prob => {
+      if (prob == 0.0) -MAX_EVIDENCE else Math.log(prob)
     }))
   )
 
   /**
-   * Applies the model. The result is a evidence distribution for class values.
+   * Applies the model. The result is a log probability distribution for class values.
    * For each feature value, add evidences together to
    * get a final raw distribution
-   * @return raw, unnormalized relative evidence.
+   * @return raw, unnormalized relative log probability.
    */
   override protected def predictRaw(features: Vector): Vector = {
-    val evidence: Array[Double] = priorEvidence.clone()
+    val evidence: Array[Double] = priorLogProbabilities.clone()
     var featureIdx = 0
     // features.foreachActive((featureIdx, value) => {  // this should work but gave wrong results
     features.toArray.foreach(value => {
       val v = value.toInt
-      val featureEvidence = evidenceData(featureIdx)
+      val featureEvidence = logProbabilityData(featureIdx)
       // There may occasionally be values in the test data that were not in the training data.
       // In these cases v will be >= featureProbs.length. Such values are ignored.
       if (v < featureEvidence.length) {
-        val md = featureEvidence(v)
+        val fe = featureEvidence(v)
         featureIdx += 1
         for (i <- 0 until numClasses) {
-          evidence(i) += md(i)
+          evidence(i) += fe(i)
         }
       }
     })
-    Vectors.dense(evidence)
+    val probs = evidence.map(math.exp)
+    Vectors.dense(probs)
   }
 
   override protected def raw2probabilityInPlace(rawPrediction: Vector): Vector = {

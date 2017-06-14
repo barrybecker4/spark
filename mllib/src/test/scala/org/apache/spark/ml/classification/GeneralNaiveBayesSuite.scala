@@ -433,8 +433,9 @@ class GeneralNaiveBayesSuite extends SparkFunSuite
     val predictionAndLabels: DataFrame =
       model.transform(validationDataset).select("prediction", "label")
 
-    // should be at least 90% correct. Before change, it fails because of numerical underflow.
-    validatePrediction(predictionAndLabels, 0.90)
+    // Should be at least 99% correct.  Before the change to use log probabilities,
+    // the percent correct was lower because of numerical underflow.
+    validatePrediction(predictionAndLabels, 0.99)
   }
 
 

@@ -312,23 +312,28 @@ class GeneralNaiveBayesModel private[ml] (
    * @return raw, unnormalized relative log probability.
    */
   override protected def predictRaw(features: Vector): Vector = {
-    val evidence: Array[Double] = priorLogProbabilities.clone()
+    val logProbs: Array[Double] = priorLogProbabilities.clone()
     var featureIdx = 0
     // features.foreachActive((featureIdx, value) => {  // this should work but gave wrong results
     features.toArray.foreach(value => {
       val v = value.toInt
-      val featureEvidence = logProbabilityData(featureIdx)
+      val featureLogProbs = logProbabilityData(featureIdx)
       // There may occasionally be values in the test data that were not in the training data.
       // In these cases v will be >= featureProbs.length. Such values are ignored.
-      if (v < featureEvidence.length) {
-        val fe = featureEvidence(v)
+      if (v < featureLogProbs.length) {
+        val flb = featureLogProbs(v)
         featureIdx += 1
         for (i <- 0 until numClasses) {
-          evidence(i) += fe(i)
+          logProbs(i) += flb(i)
         }
       }
     })
-    val probs = evidence.map(math.exp)
+    val largestExp = logProbs.min
+    // If the log probabilities got really small, update them so they will not be small.
+    // This is the part that prevents underflow.
+    val probs =
+      if (largestExp < -100.0) logProbs.map(_ - largestExp).map(math.exp)
+      else logProbs.map(math.exp)
     Vectors.dense(probs)
   }
 
